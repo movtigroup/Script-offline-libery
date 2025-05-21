@@ -4,11 +4,11 @@ import sys
 import subprocess
 from packages import PACKAGES  # Import the packages dictionary from packages.py
 
-# Define directories for offline package downloads and virtual environment.
+# Directories for offline package downloads and virtual environment.
 LIB_DIR = "libay"
 VENV_DIR = "venv"
 
-# Global variable for the selected Python version (default is the system's version).
+# Global variable for the selected Python version (default is the system’s version).
 SELECTED_PYTHON_VERSION = f"{sys.version_info.major}.{sys.version_info.minor}"
 
 def get_recommended_version(package):
@@ -16,12 +16,12 @@ def get_recommended_version(package):
     return PACKAGES.get(package, {}).get(SELECTED_PYTHON_VERSION, "latest")
 
 def set_python_version():
-    """Allow the user to set the desired Python version (3.9, 3.10, 3.11, or 3.12)."""
+    """Allow the user to set the desired Python version (3.9, 3.10, 3.11, 3.12, or 3.13)."""
     global SELECTED_PYTHON_VERSION
-    print("Please enter your desired Python version (e.g., 3.9, 3.10, 3.11, or 3.12):")
+    print("Please enter your desired Python version (e.g., 3.9, 3.10, 3.11, 3.12, or 3.13):")
     version_input = input("Python version: ").strip()
-    if version_input not in ["3.9", "3.10", "3.11", "3.12"]:
-        print("Invalid version entered. Please choose from 3.9, 3.10, 3.11, or 3.12.")
+    if version_input not in ["3.9", "3.10", "3.11", "3.12", "3.13"]:
+        print("Invalid version entered. Please choose from 3.9, 3.10, 3.11, 3.12, or 3.13.")
     else:
         SELECTED_PYTHON_VERSION = version_input
         print(f"Selected Python version: {SELECTED_PYTHON_VERSION}")
@@ -57,7 +57,7 @@ def offline_download_packages():
     print("Offline package download process completed.\n")
 
 def check_downloaded_packages():
-    """List the downloaded package files in the LIB_DIR folder."""
+    """List the downloaded package files in the offline library folder."""
     if not os.path.exists(LIB_DIR):
         print(f"Folder '{LIB_DIR}' does not exist. Please run the download option first.\n")
         return
@@ -93,7 +93,7 @@ def offline_install_packages():
     print("Offline installation of packages completed.\n")
 
 def create_virtual_environment():
-    """Create a virtual environment and install packages into it according to the selected Python version."""
+    """Create a virtual environment and install packages into it based on the selected Python version."""
     if not os.path.exists(VENV_DIR):
         print(f"Creating virtual environment '{VENV_DIR}'...")
         try:
@@ -105,9 +105,8 @@ def create_virtual_environment():
     else:
         print(f"Virtual environment '{VENV_DIR}' already exists.")
     
-    # Determine the pip path in the virtual environment:
+    # Determine the pip path in the virtual environment.
     pip_path = os.path.join(VENV_DIR, "Scripts", "pip") if sys.platform == "win32" else os.path.join(VENV_DIR, "bin", "pip")
-    
     print("Installing packages into the virtual environment...")
     for package in PACKAGES.keys():
         if package.lower() == "uvloop" and sys.platform == "win32":
@@ -126,10 +125,9 @@ def create_virtual_environment():
 
 def run_app_in_venv():
     """
-    Run a Python script in the virtual environment using PowerShell (Windows only):
-      1. Change directory to the launcher's directory.
-      2. Activate the virtual environment.
-      3. Change directory to the application directory and run the Python file.
+    Run a Python script in the virtual environment in a new terminal window.
+    
+    For Windows, this uses PowerShell. For Linux, it attempts to open a new gnome-terminal.
     """
     app_path = input("Please enter the full path to the Python file to run:\n").strip()
     if not os.path.exists(app_path):
@@ -139,28 +137,38 @@ def run_app_in_venv():
     app_dir = os.path.dirname(app_path)
     app_file = os.path.basename(app_path)
     launcher_dir = os.path.dirname(os.path.abspath(__file__))
-    activation_script = os.path.join(launcher_dir, VENV_DIR, "Scripts", "Activate.ps1")
     
-    if not os.path.exists(activation_script):
-        print(f"Activation script not found at {activation_script}.\n")
-        return
-    
-    cmd = (
-        f"cd '{launcher_dir}'; "
-        f"& '{activation_script}'; "
-        f"cd ../; "
-        f"cd '{app_dir}'; "
-        f"python '{app_file}'"
-    )
-    
-    try:
-        subprocess.Popen(
-            ["powershell", "-NoExit", "-Command", cmd],
-            creationflags=subprocess.CREATE_NEW_CONSOLE
+    if sys.platform == "win32":
+        # Windows: use PowerShell.
+        activation_script = os.path.join(launcher_dir, VENV_DIR, "Scripts", "Activate.ps1")
+        if not os.path.exists(activation_script):
+            print(f"Activation script not found at {activation_script}.\n")
+            return
+        cmd = (
+            f"cd '{launcher_dir}'; "
+            f"& '{activation_script}'; "
+            f"cd ../; "
+            f"cd '{app_dir}'; "
+            f"python '{app_file}'"
         )
-        print("A new PowerShell window has been opened to run the application.\n")
-    except Exception as e:
-        print("Error running the application in virtual environment:", e)
+        try:
+            subprocess.Popen(
+                ["powershell", "-NoExit", "-Command", cmd],
+                creationflags=subprocess.CREATE_NEW_CONSOLE
+            )
+            print("A new PowerShell window has been opened to run the application.\n")
+        except Exception as e:
+            print("Error running the application in virtual environment:", e)
+    else:
+        # Linux: attempt to open a new terminal (using gnome-terminal as an example).
+        venv_activate = os.path.join(launcher_dir, VENV_DIR, "bin", "activate")
+        # Build a command that activates the venv, changes directory, runs the app, and holds the terminal open.
+        linux_cmd = f"bash -c 'source \"{venv_activate}\"; cd \"{app_dir}\"; python \"{app_file}\"; exec bash'"
+        try:
+            subprocess.Popen(["gnome-terminal", "--", "bash", "-c", linux_cmd])
+            print("A new terminal window has been opened to run the application.\n")
+        except Exception as e:
+            print("Error launching the application in a new terminal window on Linux:", e)
 
 def print_menu():
     print("""
@@ -171,8 +179,8 @@ Please choose an option:
 1. Check downloaded packages in 'libay'
 2. Install packages offline from 'libay'
 3. Create virtual environment ('venv') and install packages into it
-4. Run a Python script in the virtual environment (PowerShell)
-5. Set desired Python version (3.9, 3.10, 3.11, 3.12)
+4. Run a Python script in the virtual environment (New terminal window)
+5. Set desired Python version (3.9, 3.10, 3.11, 3.12, or 3.13)
 q. Quit
 """)
 
