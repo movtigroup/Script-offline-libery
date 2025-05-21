@@ -2,7 +2,7 @@
 import os
 import sys
 import subprocess
-from packages import PACKAGES  # Import the packages dictionary from packages.py
+from packges import PACKAGES 
 
 # Directories for offline package downloads and virtual environment.
 LIB_DIR = "libay"
@@ -26,6 +26,34 @@ def set_python_version():
         SELECTED_PYTHON_VERSION = version_input
         print(f"Selected Python version: {SELECTED_PYTHON_VERSION}")
         print(f"Checking and downloading the best libraries for Python {SELECTED_PYTHON_VERSION}...\n")
+
+def check_and_upgrade_pip():
+    """Check current pip version and upgrade it offline if outdated."""
+    import pkg_resources
+    try:
+        current_version = pkg_resources.get_distribution("pip").version
+        print(f"Current pip version: {current_version}")
+    except Exception as e:
+        print(f"Could not determine pip version: {e}")
+        current_version = None
+
+    recommended_version = get_recommended_version("pip")
+    if recommended_version == "latest":
+        print("Recommended pip version is 'latest', skipping upgrade check.")
+        return
+
+    if current_version is None or pkg_resources.parse_version(current_version) < pkg_resources.parse_version(recommended_version):
+        print(f"Upgrading pip to version {recommended_version} offline...")
+        pip_package_spec = f"pip=={recommended_version}"
+        try:
+            subprocess.check_call(
+                [sys.executable, "-m", "pip", "install", "--no-index", "--find-links", LIB_DIR, pip_package_spec]
+            )
+            print("Pip upgraded successfully.")
+        except subprocess.CalledProcessError as e:
+            print(f"Error upgrading pip: {e}")
+    else:
+        print("Pip is up to date.")
 
 def offline_download_packages():
     """Download packages offline according to the selected Python version."""
@@ -76,6 +104,8 @@ def offline_install_packages():
         print(f"Folder '{LIB_DIR}' does not exist. Please run the download option first.\n")
         return
     print(f"Selected Python version: {SELECTED_PYTHON_VERSION}")
+    print("Checking and upgrading pip if necessary before installing packages offline...")
+    check_and_upgrade_pip()
     print("Installing packages offline...")
     for package in PACKAGES.keys():
         if package.lower() == "uvloop" and sys.platform == "win32":
